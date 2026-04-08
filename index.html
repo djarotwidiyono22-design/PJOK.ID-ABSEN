@@ -820,7 +820,8 @@
             let remedialList = [];
             state.grades.forEach(g => {
                 const kktp = g.kktp || 0;
-                if(kktp > 0) {
+                // Hanya memproses asessmen berjenis 'Sumatif' yang memiliki KKTP
+                if(kktp > 0 && g.type === 'Sumatif') {
                     Object.entries(g.scores).forEach(([studentName, score]) => {
                         const numScore = Number(score);
                         if (numScore < kktp) {
@@ -902,7 +903,7 @@
                                         <button onclick="window.saveRemedial('${r.id}', '${r.studentName}', ${r.kktp}, 'rem-${uniqueIdx}', 'desc-${uniqueIdx}', 'rem-date-${uniqueIdx}')" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase transition-all shadow-md">Simpan</button>
                                     </td>
                                 </tr>
-                            `}).join('') : '<tr><td colspan="12" class="px-10 py-20 text-center font-black text-slate-300 uppercase tracking-widest italic text-xs">Tidak ada siswa yang remedial atau data tidak ditemukan 🎉</td></tr>'}
+                            `}).join('') : '<tr><td colspan="12" class="px-10 py-20 text-center font-black text-slate-300 uppercase tracking-widest italic text-xs">Tidak ada siswa yang remedial (Sumatif) atau data tidak ditemukan 🎉</td></tr>'}
                         </tbody>
                     </table>
                 </div>
@@ -916,7 +917,8 @@
             let remedialTotal = 0;
             state.grades.forEach(g => {
                 const kktp = g.kktp || 0;
-                if(kktp > 0) {
+                // Hanya menghitung asessmen berjenis 'Sumatif' yang memiliki KKTP
+                if(kktp > 0 && g.type === 'Sumatif') {
                     Object.entries(g.scores).forEach(([studentName, score]) => {
                         if (Number(score) < kktp) remedialTotal++;
                     });
@@ -930,7 +932,7 @@
                             <div class="p-4 bg-rose-50 text-rose-600 rounded-2xl"><i data-lucide="clipboard-list" class="w-8 h-8"></i></div>
                             <div>
                                 <h3 class="text-xl font-black text-slate-800 uppercase italic leading-none">Catatan Remedial</h3>
-                                <p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Siswa dengan nilai di bawah KKTP</p>
+                                <p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Siswa dengan nilai Sumatif di bawah KKTP</p>
                             </div>
                         </div>
                         <div class="px-6 py-4 bg-rose-600 text-white rounded-2xl font-black text-2xl shadow-xl">
@@ -2413,7 +2415,8 @@
                 state.grades.forEach(g => {
                     if (g.className !== className) return;
                     const kktp = g.kktp || 0;
-                    if (kktp > 0) {
+                    // Hanya memasukkan nilai Sumatif ke ekspor
+                    if (kktp > 0 && g.type === 'Sumatif') {
                         Object.entries(g.scores).forEach(([studentName, score]) => {
                             const numScore = Number(score);
                             const attemptCount = (g.remedialCounts && g.remedialCounts[studentName]) || 0;
