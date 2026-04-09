@@ -125,7 +125,7 @@
             isSidebarOpen: false,
             charts: { pie: null, bar: null },
             ui: {
-                grades: { page: 1, limit: 5, search: '' },
+                grades: { page: 1, limit: 5, search: '', editingId: null },
                 reports: { page: 1, limit: 5, search: '' },
                 remedial: { page: 1, limit: 5, search: '' },
                 classes: { editingClassId: null, editingStudentIdx: null }
@@ -716,7 +716,7 @@
                         </thead>
                         <tbody class="divide-y divide-slate-50">
                             ${paginated.map(g => {
-                                const values = Object.values(g.scores).map(Number);
+                                const values = Object.values(g.scores).filter(v => v !== '').map(Number);
                                 const avg = values.length ? (values.reduce((a,b) => a+b, 0) / values.length).toFixed(1) : 0;
                                 const isSumatif = g.type === 'Sumatif';
                                 return `
@@ -1382,8 +1382,18 @@
                         return;
                     }
 
-                    const existing = state.grades.find(g => g.classId === classId && g.assessmentName.toLowerCase() === assessment.toLowerCase() && g.date === dateInput.value && g.type === type);
-                    
+                    let existing;
+                    if (state.ui.grades.editingId) {
+                        existing = state.grades.find(g => g.id === state.ui.grades.editingId);
+                        // Jika mengganti rombel saat mode edit, reset mode edit
+                        if (existing && existing.classId !== classId) {
+                            existing = undefined; 
+                            state.ui.grades.editingId = null;
+                        }
+                    } else {
+                        existing = state.grades.find(g => g.classId === classId && g.assessmentName.toLowerCase() === assessment.toLowerCase() && g.date === dateInput.value && g.type === type);
+                    }
+
                     if (existing && existing.kktp) {
                         kktpInput.value = existing.kktp;
                     }
@@ -1391,7 +1401,11 @@
                     container.innerHTML = `
                         <div class="bg-white rounded-[2.5rem] shadow-xl overflow-hidden animate-fade border border-slate-100">
                             <div class="bg-slate-50 p-6 flex justify-between items-center border-b">
-                                <h4 class="font-black text-slate-800 uppercase italic text-sm">Input Nilai: ${cls.name} - ${assessment} (${type})</h4>
+                                <h4 class="font-black text-slate-800 uppercase italic text-sm flex items-center gap-2">
+                                    ${state.ui.grades.editingId ? '<span class="px-2 py-1 bg-blue-100 text-blue-600 rounded-lg text-[9px] tracking-widest">MODE EDIT</span>' : ''}
+                                    Input Nilai: ${cls.name} - ${assessment} (${type})
+                                </h4>
+                                ${state.ui.grades.editingId ? `<button onclick="window.cancelEditGrade()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-xl text-xs font-black uppercase transition-colors">Batal Edit</button>` : ''}
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left min-w-[600px]">
@@ -1405,14 +1419,14 @@
                                     </thead>
                                     <tbody class="divide-y divide-slate-50">
                                         ${cls.students.map((s, idx) => {
-                                            const val = existing ? (existing.scores[s.name] !== undefined ? existing.scores[s.name] : 0) : 0;
+                                            const val = existing && existing.scores[s.name] !== undefined ? existing.scores[s.name] : '';
                                             return `
                                                 <tr class="hover:bg-orange-50/30 transition-colors">
                                                     <td class="px-6 py-5 text-center font-bold text-slate-400 text-[11px]">${idx + 1}</td>
                                                     <td class="px-10 py-5 font-bold text-slate-700 uppercase text-[11px]">${s.name}</td>
                                                     <td class="px-4 py-5 text-center font-black text-orange-500 text-[10px]">${s.gender}</td>
                                                     <td class="px-10 py-5 text-center">
-                                                        <input type="number" min="0" max="100" data-student="${s.name}" class="grade-input w-24 p-2 bg-slate-50 border-2 border-transparent focus:border-orange-500 rounded-xl outline-none font-black text-center" value="${val}">
+                                                        <input type="number" min="0" max="100" data-student="${s.name}" class="grade-input w-24 p-2 bg-slate-50 border-2 border-transparent focus:border-orange-500 rounded-xl outline-none font-black text-center" value="${val}" placeholder="-">
                                                     </td>
                                                 </tr>
                                             `;
@@ -1442,7 +1456,7 @@
                     const cls = state.classes.find(c => c.id === classId);
                     const scores = {};
                     document.querySelectorAll('.grade-input').forEach(input => {
-                        scores[input.getAttribute('data-student')] = input.value || 0;
+                        scores[input.getAttribute('data-student')] = input.value === '' ? '' : Number(input.value);
                     });
 
                     const data = {
@@ -1457,16 +1471,22 @@
                         studentList: cls.students
                     };
 
-                    const existingIdx = state.grades.findIndex(g => g.classId === classId && g.assessmentName === assessment && g.date === date && g.type === type);
+                    let existingIdx = -1;
+                    if (state.ui.grades.editingId) {
+                        existingIdx = state.grades.findIndex(g => g.id === state.ui.grades.editingId);
+                    } else {
+                        existingIdx = state.grades.findIndex(g => g.classId === classId && g.assessmentName.toLowerCase() === assessment.toLowerCase() && g.date === date && g.type === type);
+                    }
 
                     if (existingIdx > -1) {
-                        state.grades[existingIdx] = { ...state.grades[existingIdx], ...data };
+                        state.grades[existingIdx] = { ...state.grades[existingIdx], ...data, lastUpdated: new Date().toISOString() };
                     } else {
                         state.grades.push({ id: generateId(), ...data });
                     }
                     
                     saveToLocal();
                     assessInput.value = "";
+                    state.ui.grades.editingId = null;
                     state.ui.grades.page = 1; 
                     renderApp();
 
@@ -1746,6 +1766,7 @@
         window.deleteGrade = (id) => {
             window.showConfirm('Apakah Anda yakin ingin menghapus riwayat penilaian ini?', () => {
                 state.grades = state.grades.filter(g => g.id !== id);
+                if (state.ui.grades.editingId === id) state.ui.grades.editingId = null;
                 saveToLocal();
                 showToast('Riwayat penilaian dihapus');
                 renderApp();
@@ -1755,6 +1776,8 @@
         window.editGrade = (id) => {
             const record = state.grades.find(g => g.id === id);
             if (!record) return;
+            
+            state.ui.grades.editingId = id; // Mengaktifkan mode edit
             
             if(state.activeTab !== 'grades') {
                 window.setTab('grades');
@@ -1779,6 +1802,11 @@
                     showToast('Silakan perbarui nilai dan klik Simpan');
                 }
             }, 100);
+        };
+
+        window.cancelEditGrade = () => {
+            state.ui.grades.editingId = null;
+            renderApp();
         };
 
         window.deleteAttendance = (id) => {
